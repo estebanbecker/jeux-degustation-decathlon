@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jeu Photo & Dégustation</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background: #f5f5f5;
+            color: #333;
+        }
+        .container { 
+            max-width: 800px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 30px; 
+            border-radius: 10px; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 { 
+            text-align: center; 
+            color: #2c3e50; 
+            margin-bottom: 30px;
+        }
+        .step {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+        }
+        .step[aria-disabled="true"] {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        .row { 
+            display: flex; 
+            gap: 15px; 
+            align-items: end; 
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        .row > div { flex: 1; min-width: 150px; }
+        label { 
+            display: block; 
+            margin-bottom: 5px; 
+            font-weight: bold;
+        }
+        input, button { 
+            padding: 10px; 
+            border: 2px solid #ddd; 
+            border-radius: 5px; 
+            font-size: 16px;
+        }
+        input { width: 100%; }
+        input.error { border-color: #e74c3c; background: #fdf2f2; }
+        button { 
+            background: #3498db; 
+            color: white; 
+            border: none; 
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover:not(:disabled) { background: #2980b9; }
+        button:disabled { 
+            background: #bdc3c7; 
+            cursor: not-allowed; 
+        }
+        .actions { text-align: center; margin-top: 15px; }
+        .status { 
+            margin-top: 15px; 
+            padding: 10px; 
+            border-radius: 5px;
+            text-align: center;
+        }
+        .status .ok { color: #27ae60; font-weight: bold; }
+        .status .ko { color: #e74c3c; font-weight: bold; }
+        .preview { 
+            display: none; 
+            align-items: center; 
+            gap: 10px; 
+            padding: 10px; 
+            background: #ecf0f1; 
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        .big-cross {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            font-size: 150px;
+            color: #e74c3c;
+            z-index: 1000;
+            transition: transform 0.3s ease;
+            pointer-events: none;
+        }
+        .big-cross.show { transform: translate(-50%, -50%) scale(1); }
+        .timer {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #2c3e50;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        .score-display {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: #27ae60;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        #fx {
+            position: fixed;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 999;
+        }
+        .progress {
+            background: #3498db;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background: #f8f9fa;
+            font-weight: bold;
+        }
+        .leaderboard {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .podium {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+        .podium .p {
+            text-align: center;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            min-width: 150px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .muted { color: #7f8c8d; font-size: 14px; }
+        @media (max-width: 600px) {
+            .row { flex-direction: column; }
+            .row > div { min-width: auto; }
+            .podium { flex-direction: column; align-items: center; }
+        }
+    </style>
+</head>
+<body>
+    <div class="timer" id="timer">00:00</div>
+    <div class="score-display">Score: <span id="score">0</span></div>
+    <div class="big-cross" id="bigCross">❌</div>
+    <canvas id="fx"></canvas>
+
+    <div class="container">
+        <h1>🎯 Jeu Photo & Dégustation</h1>
+        
+        <!-- Étape 1: Identification -->
+        <div class="step">
+            <h2>👤 Étape 1 : Qui es-tu ?</h2>
+            <div class="row">
+                <div>
+                    <label for="joueurNom">Nom</label>
+                    <input type="text" id="joueurNom" placeholder="Ton nom" />
+                </div>
+                <div>
+                    <label for="joueurPrenom">Prénom</label>
+                    <input type="text" id="joueurPrenom" placeholder="Ton prénom" />
+                </div>
+            </div>
+            <div class="actions">
+                <button id="goStep2" disabled>Commencer le jeu 🚀</button>
+            </div>
+        </div>
+
+        <!-- Étape 2: Jeu photos -->
+        <div class="step" id="step2" aria-disabled="true">
+            <h2>📸 Étape 2 : Devine les prénoms (10 pts minimum pour débloquer la dégustation)</h2>
+            <div class="row">
+                <div>
+                    <label for="photoNum">Numéro de la photo</label>
+                    <input type="number" id="photoNum" min="1" max="37" placeholder="ex: 1" />
+                </div>
+                <div>
+                    <label for="prenomCible">Prénom de la personne</label>
+                    <input type="text" id="prenomCible" placeholder="ex: Lucas" />
+                </div>
+            </div>
+            
+            <div class="preview" id="preview">
+                <span id="previewNum">#1</span>
+                <span id="previewWho">Numéro 1</span>
+            </div>
+            
+            <div class="actions">
+                <button id="valider">Valider 🎯</button>
+                <button id="reset">Reset ↺</button>
+            </div>
+            
+            <div class="status" id="status"></div>
+        </div>
+
+        <!-- Étape 3: Dégustation -->
+        <div class="step">
+            <h2>🍽️ Étape 3 : Dégustation à l'aveugle</h2>
+            <div class="actions">
+                <button id="degustBtn" disabled>Commencer la dégustation 👅</button>
+            </div>
+            <div id="degustation"></div>
+        </div>
+
+        <!-- Leaderboard -->
+        <div class="leaderboard">
+            <h2>🏆 Classement</h2>
+            <div id="lbYour">Ton score apparaîtra ici</div>
+            <div class="podium" id="podium"></div>
+        </div>
+    </div>
+
+<script>
+  // --- Mapping numéro -> prénom (ta liste) ---
+  const PHOTOS = [
+    { id: 1, name: 'Lucas' },{ id: 2, name: 'Raphael' },{ id: 3, name: 'Nicolas' },{ id: 4, name: 'Jerome' },
+    { id: 5, name: 'Eric' },{ id: 6, name: 'Olivier' },{ id: 7, name: 'Ugo' },{ id: 8, name: 'Mathieu' },
+    { id: 9, name: 'David' },{ id: 10, name: 'Charly' },{ id: 11, name: 'Fanny' },{ id: 12, name: 'Thomas' },
+    { id: 13, name: 'Nicolas' },{ id: 14, name: 'Guillaume' },{ id: 15, name: 'Maxime' },{ id: 16, name: 'Francesco' },
+    { id: 17, name: 'Guillaume' },{ id: 18, name: 'Antoine' },{ id: 19, name: 'Adrien' },{ id: 20, name: 'fréderic' },
+    { id: 21, name: 'Matthieu' },{ id: 22, name: 'Juliette' },{ id: 23, name: 'Yannick' },{ id: 24, name: 'Loic' },
+    { id: 25, name: 'Armand' },{ id: 26, name: 'Alice' },{ id: 27, name: 'Oihana' },{ id: 28, name: 'Anais' },
+    { id: 29, name: 'Erwan' },{ id: 30, name: 'Noeline' },{ id: 31, name: 'Marc' },{ id: 32, name: 'Leticia' },
+    { id: 33, name: 'Goeffrey' },{ id: 34, name: 'Quentin' },{ id: 35, name: 'Camille' },{ id: 36, name: 'Thibault' },
+    { id: 37, name: 'Julien' }
+  ];
+
+  // --- Dégustation séquentielle ---
+  const DEGUST_SEQ = [
+    { num: 1, category: 'Chips', answer: "Chèvre piment d'espelette" },
+    { num: 2, category: 'Chips', answer: "Barbecue" },
+    { num: 3, category: 'Chips', answer: "Paprika doux" },
+    { num: 4, category: 'Chips', answer: "Cheddar & Oignon" },
+    { num: 5, category: 'Sauce', answer: "Pesto" },
+    { num: 6, category: 'Sauce', answer: "Ketchup (tomates cuisinées)" },
+    { num: 7, category: 'Sauce', answer: "Sauce barbecue fumée (BBQ sauce)" },
+    { num: 8, category: 'Sauce', answer: "Sauce moutarde en pot" },
+    { num: 9, category: 'Boisson', answer: "Eau citron" },
+    { num: 10, category: 'Boisson', answer: "Euskola" },
+    { num: 11, category: 'Boisson', answer: "Jus de pamplemousse" },
+    { num: 12, category: 'Boisson', answer: "Jus de pomme" },
+  ];
+
+  // --- UI refs ---
+  const elNom = document.getElementById('joueurNom');
+  const elPrenom = document.getElementById('joueurPrenom');
+  const btnStep2 = document.getElementById('goStep2');
+  const step2 = document.getElementById('step2');
+  const inputNum = document.getElementById('photoNum');
+  const inputPrenom = document.getElementById('prenomCible');
+  const btnValider = document.getElementById('valider');
+  const btnReset = document.getElementById('reset');
+  const status = document.getElementById('status');
+  const bigCross = document.getElementById('bigCross');
+  const preview = document.getElementById('preview');
+  const previewNum = document.getElementById('previewNum');
+  const previewWho = document.getElementById('previewWho');
+  const scoreEl = document.getElementById('score');
+  const degustBtn = document.getElementById('degustBtn');
+  const degustation = document.getElementById('degustation');
+  const lbYour = document.getElementById('lbYour');
+  const podium = document.getElementById('podium');
+  const timerEl = document.getElementById('timer');
+
+  // --- Chrono global ---
+  let tRunning = false, tStart = 0, tElapsed = 0, tTick = null;
+  const fmtTime = (ms)=>{ const s=Math.floor(ms/1000); const mm=String(Math.floor(s/60)).padStart(2,'0'); const ss=String(s%60).padStart(2,'0'); return `${mm}:${ss}`; };
+  const renderTime = ()=>{ timerEl.textContent = fmtTime(tElapsed + (tRunning ? Date.now()-tStart : 0)); };
+  function startTimer(){ if(tRunning) return; tStart=Date.now(); tRunning=true; tTick=setInterval(renderTime,250); }
+  function pauseTimer(){ if(!tRunning) return; tElapsed += (Date.now()-tStart); tRunning=false; clearInterval(tTick); tTick=null; renderTime(); }
+  function resumeTimer(){ if(tRunning) return; tStart=Date.now(); tRunning=true; tTick=setInterval(renderTime,250); }
+  function totalTimeMs(){ return tElapsed + (tRunning ? Date.now()-tStart : 0); }
+  renderTime();
+
+  // --- Score ---
+  let score = 0;
+  function addScore(pts){
+    const prev = score;
+    score += pts;
+    scoreEl.textContent = score;
+    if(prev < 10 && score >= 10){ pauseTimer(); } // pause entre photo et dégustation
+  }
+
+  // --- Étape 1 ---
+  function canContinue(){ return elNom.value.trim() && elPrenom.value.trim(); }
+  [elNom, elPrenom].forEach(i=> i.addEventListener('input',()=>{ btnStep2.disabled = !canContinue(); }));
+  btnStep2.addEventListener('click', ()=>{
+    step2.removeAttribute('aria-disabled');
+    window.scrollTo({top: step2.offsetTop-12, behavior:'smooth'});
+    if(!tRunning && tElapsed===0) startTimer(); // démarrage chrono
+  });
+
+  // --- Aperçu numéro ---
+  inputNum.addEventListener('input', ()=>{
+    const num = parseInt(inputNum.value,10);
+    if(Number.isInteger(num)){
+      preview.style.display='flex'; previewNum.textContent = `#${num}`; previewWho.textContent = `Numéro ${num}`;
+    } else { preview.style.display='none'; }
+  });
+
+  // ====== CORRECTION CRITIQUE ======
+  // Normalisation compatible tous navigateurs (retire accents via plage unicode \u0300-\u036f)
+  const normalize = (s)=> (s||'')
+    .toString()
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')   // <-- pas de \p{Diacritic}
+    .toLowerCase();
+
+  // Tolérance (Levenshtein)
+  function lev(a,b){ a=normalize(a); b=normalize(b);
+    const m=a.length,n=b.length; if(m===0) return n; if(n===0) return m;
+    const dp=Array.from({length:m+1},()=>Array(n+1).fill(0));
+    for(let i=0;i<=m;i++) dp[i][0]=i; for(let j=0;j<=n;j++) dp[0][j]=j;
+    for(let i=1;i<=m;i++){ for(let j=1;j<=n;j++){
+      const cost=a[i-1]===b[j-1]?0:1;
+      dp[i][j]=Math.min(dp[i-1][j]+1, dp[i][j-1]+1, dp[i-1][j-1]+cost);
+    } }
+    return dp[m][n];
+  }
+  function isAcceptable(expected,given){
+    const A=normalize(expected), B=normalize(given);
+    if(A===B) return true;
+    const d=lev(A,B), L=Math.max(A.length,B.length);
+    if(L<=5) return d<=1; if(L<=8) return d<=2; return d<=3;
+  }
+  // ================================
+
+  // --- Effets visuels (feu d'artifice & croix) ---
+  const canvas = document.getElementById('fx'); const ctx = canvas.getContext('2d');
+  let W,H,particles=[],running=false,raf;
+  function resize(){ W=canvas.width=window.innerWidth; H=canvas.height=window.innerHeight; }
+  window.addEventListener('resize', resize); resize();
+  function burst(x,y,count=120){ for(let i=0;i<count;i++){ const a=Math.random()*Math.PI*2,s=2+Math.random()*5; particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:60+Math.random()*30,age:0}); } }
+  function loop(){ if(!running) return; ctx.clearRect(0,0,W,H);
+    particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=0.05;p.age++;});
+    ctx.globalCompositeOperation='lighter';
+    particles.forEach(p=>{const t=1-p.age/p.life; if(t<=0) return; ctx.globalAlpha=Math.max(0,t); ctx.beginPath(); ctx.arc(p.x,p.y,2,0,Math.PI*2); ctx.fill();});
+    ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over';
+    particles=particles.filter(p=>p.age<p.life); if(particles.length===0){running=false; cancelAnimationFrame(raf); return;} raf=requestAnimationFrame(loop);
+  }
+  function fireworks(){ const cx=window.innerWidth/2, cy=window.innerHeight/3; burst(cx,cy); if(!running){running=true; raf=requestAnimationFrame(loop);} setTimeout(()=>{particles=[]; running=false; cancelAnimationFrame(raf); ctx.clearRect(0,0,W,H);}, 1200); }
+  function showCross(){ bigCross.classList.add('show'); setTimeout(()=> bigCross.classList.remove('show'), 700); }
+  function clearErrors(){ inputPrenom.classList.remove('error'); status.textContent=''; }
+
+  // --- Validation jeu photo (+10 pts) ---
+  btnValider.addEventListener('click', ()=>{
+    clearErrors();
+    const num = parseInt(inputNum.value,10);
+    const guess = inputPrenom.value;
+    if(!Number.isInteger(num)){ status.innerHTML = '<span class="ko">⚠️ Choisis d\'abord un <b>numéro</b>.</span>'; inputNum.focus(); return; }
+    if(!guess){ status.innerHTML = '<span class="ko">⚠️ Entre le <b>prénom</b> associé.</span>'; inputPrenom.classList.add('error'); inputPrenom.focus(); return; }
+    const entry = PHOTOS.find(p=>p.id===num);
+    if(!entry){ status.innerHTML = '<span class="ko">⚠️ Numéro inconnu.</span>'; inputNum.classList.add('error'); return; }
+    const correct = isAcceptable(entry.name, guess);
+    if(correct){
+      status.innerHTML = '<span class="ok">Bravo, bonne réponse ! 🎉 (+10 pts)</span>';
+      fireworks();
+      inputPrenom.classList.remove('error');
+      addScore(10);
+      // Débloquer le bouton dégustation si besoin
+      if(score >= 10) document.getElementById('degustBtn').disabled = false;
+    } else {
+      status.innerHTML = '<span class="ko">Mauvaise réponse ❌ (essaie encore)</span>';
+      inputPrenom.classList.add('error');
+      showCross();
+    }
+  });
+
+  // Reset
+  btnReset.addEventListener('click', ()=>{
+    clearErrors(); inputNum.value=''; inputPrenom.value=''; preview.style.display='none'; status.textContent=''; inputNum.focus();
+  });
+
+  // --- DÉGUSTATION ---
+  let cur = 0, tries = 3, degustLog = [];
+  function playerFullName(){ return `${elPrenom.value.trim()} ${elNom.value.trim()}`.trim() || 'Joueur'; }
+
+  degustBtn.addEventListener('click', ()=>{
+    if(score < 10) return;
+    resumeTimer();
+    cur=0; tries=3; degustLog=[]; renderDegItem();
+  });
+
+  function renderDegItem(){
+    const total = DEGUST_SEQ.length;
+    if(cur >= total){ finishAll(); return; }
+    const it = DEGUST_SEQ[cur];
+    degustation.innerHTML = `
+      <div class="progress">${playerFullName()} — Élément ${cur+1}/${total} — #${it.num} ${it.category} • 3 essais • +2 pts</div>
+      <div class="row" style="margin-top:12px">
+        <div>
+          <label for="degInput">Ta réponse</label>
+          <input id="degInput" type="text" placeholder="ex: barbecue" />
+        </div>
+      </div>
+      <div class="actions"><button id="degCheck">Valider</button></div>
+      <div id="degStatus" class="status"></div>
+    `;
+    document.getElementById('degCheck').onclick = checkDegItem;
+  }
+
+  function giveHint(ans){
+    const parts = ans.split(/\s+/); const first = parts[0] || '';
+    const letters = normalize(first).slice(0,2).toUpperCase();
+    return `${first[0] ?? ''}… (${letters})`;
+  }
+
+  function checkDegItem(){
+    const it = DEGUST_SEQ[cur];
+    const inp = document.getElementById('degInput');
+    const st = document.getElementById('degStatus');
+    const val = (inp.value || '');
+    if(!val){ st.innerHTML = '<span class="ko">⚠️ Entre une réponse.</span>'; inp.focus(); return; }
+    if(isAcceptable(it.answer, val)){
+      addScore(2); fireworks();
+      degustLog.push({ num: it.num, category: it.category, answer: it.answer, given: val, correct: true });
+      st.innerHTML = '<span class="ok">Correct ✅ (+2 pts)</span>';
+      setTimeout(()=>{ cur++; tries=3; renderDegItem(); }, 700);
+    } else {
+      tries--; showCross();
+      if(tries>0){
+        st.innerHTML = `<span class="ko">Incorrect ❌ — Il reste ${tries} essai(s). Indice : ${giveHint(it.answer)}</span>`;
+      } else {
+        st.innerHTML = `<span class="ko">Raté ❌ — Réponse : ${it.answer}</span>`;
+        degustLog.push({ num: it.num, category: it.category, answer: it.answer, given: val, correct: false });
+        setTimeout(()=>{ cur++; tries=3; renderDegItem(); }, 1200);
+      }
+    }
+  }
+
+  function finishAll(){
+    pauseTimer();
+    const rows = degustLog.map(r=>{
+      const status = r.correct ? '✅' : '❌';
+      return `<tr><td>#${r.num}</td><td>${r.category}</td><td>${r.answer}</td><td>${r.given || '—'}</td><td>${status}</td></tr>`;
+    }).join('');
+    degustation.innerHTML = `
+      <div class="ok">🎉 Dégustation terminée pour <b>${playerFullName()}</b> !</div>
+      <div class="progress">Score final : <b>${score}</b> pts • ⏱ ${fmtTime(totalTimeMs())}</div>
+      <table>
+        <thead><tr><th>#</th><th>Catégorie</th><th>Réponse attendue</th><th>Ta réponse</th><th>Statut</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+    saveToLeaderboard();
+    renderLeaderboard();
+  }
+
+  // --- Leaderboard ---
+  const LB_KEY = 'jeu-photo-leaderboard-v1';
+  function saveToLeaderboard(){
+    const item = { name: playerFullName(), score, timeMs: totalTimeMs(), at: Date.now() };
+    const raw = localStorage.getItem(LB_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    arr.push(item);
+    localStorage.setItem(LB_KEY, JSON.stringify(arr));
+  }
+  function renderLeaderboard(){
+    const raw = localStorage.getItem(LB_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    arr.sort((a,b)=> (b.score - a.score) || ((a.timeMs||Infinity) - (b.timeMs||Infinity)) || (a.at - b.at));
+    const top = arr.slice(0,3);
+    const myTime = fmtTime(totalTimeMs());
+    lbYour.textContent = `${playerFullName()} — Ton total : ${score} pts • ⏱ ${myTime}`;
+    podium.innerHTML = '';
+    const medals = ['🥇','🥈','🥉'];
+    top.forEach((p,i)=>{
+      const d = document.createElement('div');
+      d.className='p';
+      const timeTxt = p.timeMs ? `• ⏱ ${fmtTime(p.timeMs)}` : '';
+      d.innerHTML = `<div style="font-size:28px">${medals[i]||''}</div><h3>${p.name||'Joueur'}</h3><div class="muted">${p.score} pts ${timeTxt}</div>`;
+      podium.appendChild(d);
+    });
+  }
+</script>
+
+</body>
+</html>
